@@ -1,40 +1,38 @@
 # Cluster add-ons, installed by Terraform so they exist before Argo CD deploys Worca. None of them
 # tolerates the worker taint, so all run on the system node.
 
-# Ingress: Traefik behind one Network Load Balancer (EKS's built-in service controller makes it).
-resource "helm_release" "traefik" {
-  name             = "traefik"
-  namespace        = "traefik"
-  create_namespace = true
-  repository       = "https://traefik.github.io/charts"
-  chart            = "traefik"
-  version          = var.chart_versions.traefik
-
-  values = [yamlencode({
-    ingressClass = { enabled = true, isDefaultClass = true }
-    providers = {
-      kubernetesIngress = { publishedService = { enabled = true } }
-    }
-    service = {
-      type = "LoadBalancer"
-      annotations = {
-        "service.beta.kubernetes.io/aws-load-balancer-type" = "nlb"
-      }
-    }
-  })]
+# One ALB for every Ingress in the `worca` IngressGroup (Worca and Argo CD), TLS with the ACM
+# certificate (acm.tf), targets are pods by IP. Group-wide settings must match in every member.
+locals {
+  alb_annotations = {
+    "alb.ingress.kubernetes.io/group.name"      = "worca"
+    "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
+    "alb.ingress.kubernetes.io/target-type"     = "ip"
+    "alb.ingress.kubernetes.io/listen-ports"    = jsonencode([{ HTTP = 80 }, { HTTPS = 443 }])
+    "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
+    "alb.ingress.kubernetes.io/certificate-arn" = aws_acm_certificate.this.arn
+    "alb.ingress.kubernetes.io/ssl-policy"      = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+    # Worca's WebSockets stay open while a page is: the default 60 s idle timeout would cut them.
+    "alb.ingress.kubernetes.io/load-balancer-attributes" = "idle_timeout.timeout_seconds=3600"
+  }
 }
 
-# TLS certificates from Let's Encrypt (ClusterIssuer in the bootstrap chart).
-resource "helm_release" "cert_manager" {
-  name             = "cert-manager"
-  namespace        = "cert-manager"
-  create_namespace = true
-  repository       = "https://charts.jetstack.io"
-  chart            = "cert-manager"
-  version          = var.chart_versions.cert_manager
+resource "helm_release" "aws_load_balancer_controller" {
+  name       = "aws-load-balancer-controller"
+  namespace  = "kube-system"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-load-balancer-controller"
+  version    = var.chart_versions.aws_load_balancer_controller
 
   values = [yamlencode({
-    crds = { enabled = true }
+    clusterName  = local.infra.cluster_name
+    region       = local.infra.region
+    vpcId        = local.infra.vpc_id
+    replicaCount = 1
+    serviceAccount = {
+      create = true
+      name   = "aws-load-balancer-controller" # its Pod Identity association (infra/iam.tf)
+    }
   })]
 }
 
@@ -52,6 +50,10 @@ resource "helm_release" "external_secrets" {
     installCRDs    = true
     serviceAccount = { create = true, name = "external-secrets" }
   })]
+
+  # The controller's webhook must answer before other Services are created, and it must still run
+  # when Ingresses are deleted on destroy (their finalizer).
+  depends_on = [helm_release.aws_load_balancer_controller]
 }
 
 # Worker nodes from zero: a worker pod that cannot be scheduled starts a spot node; an idle worker
@@ -78,10 +80,13 @@ resource "helm_release" "cluster_autoscaler" {
       "balance-similar-node-groups"   = true
     }
   })]
+
+  depends_on = [helm_release.aws_load_balancer_controller]
 }
 
-# Argo CD: deploys Worca from git (the Application is in the bootstrap chart). No Ingress: reach
-# the UI with `kubectl -n argocd port-forward svc/argocd-server 8080:443` (README).
+# Argo CD: deploys Worca from git (the Application is in the bootstrap chart). Its UI is on the
+# same ALB at argocd_host, with Argo CD's own login: the `admin` user and the password it
+# generates at install (output argocd_admin_password_command).
 resource "helm_release" "argocd" {
   name             = "argocd"
   namespace        = "argocd"
@@ -91,7 +96,23 @@ resource "helm_release" "argocd" {
   version          = var.chart_versions.argo_cd
 
   values = [yamlencode({
+    global        = { domain = var.argocd_host }
     dex           = { enabled = false }
     notifications = { enabled = false }
+    configs = {
+      params = { "server.insecure" = true } # TLS ends at the ALB
+    }
+    server = {
+      ingress = {
+        enabled          = true
+        ingressClassName = "alb"
+        hostname         = var.argocd_host
+        annotations = merge(local.alb_annotations, {
+          "alb.ingress.kubernetes.io/healthcheck-path" = "/healthz"
+        })
+      }
+    }
   })]
+
+  depends_on = [helm_release.aws_load_balancer_controller]
 }

@@ -5,12 +5,13 @@ thread, sign-in through Microsoft Entra ID, secrets from SSM Parameter Store, an
 Worca from its git branch.
 
 ```
-                 Entra ID (sign-in)
-                      ▲
- browser ──https──► NLB ──► Traefik ──► oauth2-proxy ──► worca controller ──(pods API)──► worker pods
-                              │  cert-manager (Let's Encrypt)      │  SQLite on EBS gp3   (spot nodes, 0..N)
-                              │                                    └──── EFS (shared /worca, /projects) ────┘
- Argo CD ── git: worca-cc deploy/helm/worca @ feat/worker-containers ──► the worca release
+                                     Entra ID (Worca's sign-in)
+                                         ▲
+ browser ──https──► ALB (ACM certificate, one for both hosts)
+                     ├─ worca_host  ──► oauth2-proxy ──► worca controller ──(pods API)──► worker pods
+                     │                                   │  SQLite on EBS gp3     (spot nodes, 0..N)
+                     │                                   └──── EFS (shared /worca, /projects) ──┘
+                     └─ argocd_host ──► Argo CD (own admin login) ── git: worca-cc deploy/helm/worca @ feat/worker-containers
  External Secrets ── SSM /worca/<env>/* ──► worca-auth, worca-secrets, worca-worker-credentials
 ```
 
@@ -18,17 +19,24 @@ Two Terraform roots, applied in order, each with its own state:
 
 | Root | Providers | What it creates |
 |---|---|---|
-| [infra/](infra) | aws | VPC (public subnets, no NAT), EKS, an on-demand **system** node group (1 node), a spot **workers** node group (0..N, tainted), EBS and EFS CSI add-ons, EFS, ECR repositories, Pod Identity roles (the CSI drivers, Cluster Autoscaler, External Secrets reading only `/worca/<env>/*`) |
-| [platform/](platform) | helm, kubernetes, aws | Traefik (behind an NLB), cert-manager, External Secrets, Cluster Autoscaler, Argo CD; then [charts/bootstrap](platform/charts/bootstrap): storage classes `gp3` and `efs-sc`, Let's Encrypt issuers, the SSM-backed ExternalSecrets, and the Argo CD Application that deploys Worca with [values/worca-poc.yaml](platform/values/worca-poc.yaml) |
+| [infra/](infra) | aws | VPC (public subnets, no NAT), EKS, an on-demand **system** node group (1 node), a spot **workers** node group (0..N, tainted), EBS and EFS CSI add-ons, EFS, ECR repositories, Pod Identity roles (the CSI drivers, the AWS Load Balancer Controller, Cluster Autoscaler, External Secrets reading only `/worca/<env>/*`) |
+| [platform/](platform) | helm, kubernetes, aws | the AWS Load Balancer Controller, the ACM certificate, External Secrets, Cluster Autoscaler, Argo CD (on the ALB, its own `admin` login); then [charts/bootstrap](platform/charts/bootstrap): storage classes `gp3` and `efs-sc`, the SSM-backed ExternalSecrets, and the Argo CD Application that deploys Worca with [values/worca-poc.yaml](platform/values/worca-poc.yaml) |
+
+**One ALB for everything.** Worca's and Argo CD's Ingresses share the IngressGroup `worca`, so
+the AWS Load Balancer Controller builds one ALB with a rule per host. Further endpoints are more
+Ingresses in that group (`alb_annotations` in `platform/addons.tf`), not more load balancers.
 
 ## Before you start
 
 - **Tools:** Terraform 1.9 or newer, AWS CLI v2 signed in to the target account, kubectl, Helm,
   and Docker (to build the images).
-- **A host name** for Worca (`worca_host`) whose DNS you control. Set `route53_zone_id` to have the
-  record created; otherwise point a CNAME at the NLB yourself.
-- **An Entra app registration** (single tenant):
-  - **Redirect URI:** Web, `https://<worca_host>/oauth2/callback`.
+- **Two host names** whose DNS you control: `worca_host` and `argocd_host`, e.g.
+  `worca.example.com` and `argocd.example.com`.
+  - **With a Route 53 zone** (`route53_zone_id`), Terraform validates the certificate and creates
+    both records.
+  - **Otherwise** you add the certificate's validation CNAMEs and two CNAMEs to the ALB yourself.
+- **An Entra app registration** (single tenant) for Worca's sign-in:
+  - **Redirect URI** (Web): `https://<worca_host>/oauth2/callback`.
   - **Client secret:** create one.
   - **App roles:** e.g. `worca.team-a`, assigned to the people or groups who may use this Worca.
 
@@ -82,24 +90,36 @@ every hour. To rotate sooner: `kubectl -n worca annotate externalsecret --all fo
 
 ```bash
 cd platform
-cp terraform.tfvars.example terraform.tfvars   # host, Entra ids, allowed roles, mock_mode
+cp terraform.tfvars.example terraform.tfvars   # hosts, Entra ids, roles, mock_mode
 terraform init
 terraform apply
-terraform output load_balancer_hostname   # CNAME worca_host to it (unless route53_zone_id is set)
 ```
 
-On the very first apply the NLB may not have a host name yet; run `terraform apply` again, and it
-appears. Argo CD then syncs Worca. cert-manager gets the certificate once DNS resolves. Watch
-progress with:
+**Without** `route53_zone_id`, do the DNS once by hand:
+1. Add the CNAMEs from `terraform output acm_validation_records`. ACM issues the certificate a
+   few minutes later; until then the ALB has no HTTPS listener.
+2. `terraform apply` again: the first apply may finish before the ALB exists.
+3. CNAME both hosts to `terraform output load_balancer_hostname`.
+
+**With** a Route 53 zone, the second `apply` creates the host records too.
+
+Argo CD then syncs Worca. Watch it with:
 
 ```bash
 kubectl -n argocd get applications
-kubectl -n worca get pods,certificate,externalsecret
+kubectl -n worca get pods,ingress,externalsecret
 ```
 
-**5. Check it.** Open `https://<worca_host>`: Entra sign-in, then Worca, which names you in the
-account corner. With `mock_mode = true`, start a run. A worker pod waits (Pending), Cluster
-Autoscaler starts a spot node (1–3 minutes), the run finishes, and about 5 minutes after the
+**5. Check it.**
+- `https://<argocd_host>`: log in as `admin`. `terraform output -raw argocd_admin_password_command`
+  prints the command that reads the password Argo CD generated in the cluster; Terraform never
+  holds it. Change it (User Info → Update password), then delete the original:
+  `kubectl -n argocd delete secret argocd-initial-admin-secret`. The `worca` application should
+  be Synced and Healthy.
+- `https://<worca_host>`: Entra sign-in, then Worca, which names you in the account corner.
+
+With `mock_mode = true`, start a run. A worker pod waits (Pending), Cluster Autoscaler starts a
+spot node (1–3 minutes), the run finishes, and about 5 minutes after the
 last worker the node goes away:
 
 ```bash
@@ -116,16 +136,16 @@ Set `mock_mode = false` and apply for real runs.
 - **New images:** push the same tag again, then `kubectl -n worca rollout restart statefulset/worca`.
   Worker pods pull on start (`pullPolicy: Always`).
 - **Values:** edit `platform/values/worca-poc.yaml`, then `terraform apply` in `platform/`.
-- **Argo CD UI:** `terraform output argocd_ui`.
+- **Argo CD UI:** `https://<argocd_host>`, user `admin`.
 
 ## Remove everything
 
 ```bash
-cd platform && terraform destroy   # Worca (Argo CD deletes its resources first), add-ons, the NLB
+cd platform && terraform destroy   # Worca (Argo CD deletes its resources first), add-ons, the ALB
 cd ../infra && terraform destroy   # cluster, nodes, EFS, ECR (images included)
 ```
 
-Destroy `platform` first: the NLB and the volumes are made from inside the cluster, and the VPC
+Destroy `platform` first: the ALB and the volumes are made from inside the cluster, and the VPC
 can't be deleted while they exist. The SSM parameters stay. Delete them with
 `aws ssm delete-parameters --names $(aws ssm get-parameters-by-path --path /worca/poc --recursive --query 'Parameters[].Name' --output text)`.
 
@@ -136,7 +156,8 @@ can't be deleted while they exist. The SSM parameters stay. Delete them with
 | EKS control plane | $73 |
 | System node, t3a.large, 24/7 | $60 |
 | Worker spot nodes, ~2 h/day | $1–3 |
-| NLB (+ its public IPv4 addresses) | $20–25 |
+| ALB (base + a few LCUs + its public IPv4 addresses) | $20–25 |
+| ACM certificate | $0 |
 | EBS (2 node disks of 40 GB while running + 5 GB database) | $5–8 |
 | EFS (a few GB) | $1–3 |
 | Public IPv4 on nodes | $4–8 |
@@ -158,9 +179,12 @@ That's fine for one person. To share or automate, move both to an S3 backend: ad
 - **One controller, one AZ.** SQLite sits on an EBS volume in the system node's AZ. Losing that
   node pauses runs until it's replaced; they resume afterwards.
 - **Public subnets, no NAT.** Nodes have public IPs for outbound traffic, and their security group
-  admits nothing from outside except through the NLB.
+  admits nothing from outside. The ALB reaches pods directly by IP, through security group rules
+  the load balancer controller manages.
 - **No NetworkPolicy:** the VPC CNI doesn't enforce it unless network policy is enabled on the
   add-on.
-- **The Argo CD UI** is reached by port-forward only, as `admin`.
-- **The NLB** is made by EKS's built-in service controller. The AWS Load Balancer Controller is
-  the long-term choice: it needs one more IAM role and chart, and is worth it for a cluster that stays.
+- **Argo CD is reachable from the internet** with only its `admin` password. Change the generated
+  one, or restrict the ALB to known addresses: add
+  `alb.ingress.kubernetes.io/inbound-cidrs` to Argo CD's Ingress annotations in `platform/addons.tf`.
+- **The ALB's idle timeout** is one hour, so Worca's WebSockets survive quiet periods. It applies
+  to the whole group.

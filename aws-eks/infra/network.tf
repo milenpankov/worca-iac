@@ -7,7 +7,7 @@ locals {
 }
 
 # Public subnets only: no NAT gateway (~$32/month per AZ). Nodes get public IPs for egress; their
-# security group admits nothing from the internet (the NLB reaches Traefik's node ports).
+# security group admits nothing from the internet (the ALB reaches pods directly, by IP).
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 6.7"

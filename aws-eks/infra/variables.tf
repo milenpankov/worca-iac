@@ -34,7 +34,7 @@ variable "availability_zones" {
 }
 
 variable "system_instance_types" {
-  description = "The always-on node: Worca controller, oauth2-proxy, Argo CD, Traefik, cert-manager, External Secrets, Cluster Autoscaler. 8 GB is the comfortable minimum."
+  description = "The always-on node: Worca controller, oauth2-proxy, Argo CD, AWS Load Balancer Controller, External Secrets, Cluster Autoscaler. 8 GB is the comfortable minimum."
   type        = list(string)
   default     = ["t3a.large"]
 }

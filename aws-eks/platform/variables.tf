@@ -25,19 +25,19 @@ variable "worca_image_tag" {
 }
 
 variable "worca_host" {
-  description = "Public host name of Worca, e.g. worca.example.com. Point it at the NLB (output load_balancer_hostname) or set route53_zone_id."
+  description = "Public host name of Worca, e.g. worca.example.com. Point it at the ALB (output load_balancer_hostname) or set route53_zone_id."
+  type        = string
+}
+
+variable "argocd_host" {
+  description = "Public host name of the Argo CD UI, e.g. argocd.example.com. Same ALB, same certificate."
   type        = string
 }
 
 variable "route53_zone_id" {
-  description = "Optional: a Route 53 hosted zone for worca_host; a CNAME to the NLB is created there."
+  description = "Optional: the Route 53 hosted zone of both hosts. The certificate's validation records and CNAMEs to the ALB are created there."
   type        = string
   default     = ""
-}
-
-variable "acme_email" {
-  description = "Let's Encrypt account e-mail (expiry notices)."
-  type        = string
 }
 
 variable "mock_mode" {
@@ -87,18 +87,16 @@ variable "worker_env_secrets" {
 
 variable "chart_versions" {
   type = object({
-    argo_cd            = string
-    cert_manager       = string
-    external_secrets   = string
-    traefik            = string
-    cluster_autoscaler = string
+    argo_cd                      = string
+    aws_load_balancer_controller = string
+    external_secrets             = string
+    cluster_autoscaler           = string
   })
   default = {
-    argo_cd            = "10.18.0"
-    cert_manager       = "v1.21.3"
-    external_secrets   = "2.15.0"
-    traefik            = "42.4.0"
-    cluster_autoscaler = "9.60.0"
+    argo_cd                      = "10.18.0"
+    aws_load_balancer_controller = "3.6.2"
+    external_secrets             = "2.15.0"
+    cluster_autoscaler           = "9.60.0"
   }
 }
 

@@ -1,12 +1,12 @@
 # cp terraform.tfvars.example terraform.tfvars
-worca_host = "worca.example.com"
-acme_email = "you@example.com"
-# route53_zone_id = "Z0123456789ABCDEFGHIJ"   # optional: create the DNS record there
+worca_host  = "worca.example.com"
+argocd_host = "argocd.example.com"
+# route53_zone_id = "Z0123456789ABCDEFGHIJ"   # optional: certificate validation + DNS records there
 
-# Microsoft Entra ID (single-tenant app registration; README: Sign-in)
+# Worca's sign-in: Microsoft Entra ID (single-tenant app registration; README: Before you start)
 entra_tenant_id = "00000000-0000-0000-0000-000000000000"
 entra_client_id = "00000000-0000-0000-0000-000000000000"
-allowed_roles   = ["worca.team-a"]
+allowed_roles   = ["worca.team-a"] # who may use Worca
 
 # What Argo CD deploys
 worca_repo_url  = "https://github.com/milenpankov/worca-cc.git"

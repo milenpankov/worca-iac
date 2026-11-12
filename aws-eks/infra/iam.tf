@@ -34,6 +34,23 @@ module "cluster_autoscaler_pod_identity" {
   }
 }
 
+# The AWS Load Balancer Controller: one ALB for every Ingress in the `worca` IngressGroup.
+module "aws_lb_controller_pod_identity" {
+  source  = "terraform-aws-modules/eks-pod-identity/aws"
+  version = "~> 2.10"
+
+  name                            = "${var.name}-aws-lb-controller"
+  attach_aws_lb_controller_policy = true
+
+  associations = {
+    this = {
+      cluster_name    = module.eks.cluster_name
+      namespace       = "kube-system"
+      service_account = "aws-load-balancer-controller"
+    }
+  }
+}
+
 # External Secrets reads /worca/<environment>/* from SSM Parameter Store, nothing else. Parameters
 # are SecureStrings you create yourself (README: "Secrets"), so their values never enter
 # Terraform state.

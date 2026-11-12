@@ -12,13 +12,25 @@ locals {
     allowed_roles         = jsonencode(var.allowed_roles)
     timezone              = var.timezone
     mock_mode             = var.mock_mode
+    # The ALB IngressGroup's settings, plus the health check of oauth2-proxy (Worca's Ingress
+    # backend): its /ping answers 200 without a session.
+    ingress_annotations = jsonencode(merge(local.alb_annotations, {
+      "alb.ingress.kubernetes.io/healthcheck-path" = "/ping"
+    }))
   }))
 
-  # Kubernetes Secret -> SSM parameters (<ssm_prefix>/<path>/<key>), made by External Secrets.
+  # Kubernetes Secret -> { namespace, labels, data: { key = SSM sub-path under ssm_prefix } },
+  # made by External Secrets.
   secrets = {
-    "worca-auth"               = { path = "auth", keys = ["client-secret", "cookie-secret"] }
-    "worca-secrets"            = { path = "controller", keys = var.controller_env_secrets }
-    "worca-worker-credentials" = { path = "worker", keys = var.worker_env_secrets }
+    "worca-auth" = {
+      data = { "client-secret" = "auth/client-secret", "cookie-secret" = "auth/cookie-secret" }
+    }
+    "worca-secrets" = {
+      data = { for k in var.controller_env_secrets : k => "controller/${k}" }
+    }
+    "worca-worker-credentials" = {
+      data = { for k in var.worker_env_secrets : k => "worker/${k}" }
+    }
   }
 }
 
@@ -29,8 +41,8 @@ resource "kubernetes_namespace_v1" "worca" {
   }
 }
 
-# Storage classes, Let's Encrypt issuers, External Secrets, and the Argo CD Application. A Helm
-# release (not kubernetes_manifest) so a first `apply` plans without the add-ons' CRDs present.
+# Storage classes, External Secrets, and the Argo CD Application. A Helm release (not
+# kubernetes_manifest) so a first `apply` plans without the add-ons' CRDs present.
 resource "helm_release" "bootstrap" {
   name      = "worca-bootstrap"
   namespace = "kube-system"
@@ -39,7 +51,6 @@ resource "helm_release" "bootstrap" {
   values = [yamlencode({
     region          = local.infra.region
     efsFileSystemId = local.infra.efs_file_system_id
-    acmeEmail       = var.acme_email
     ssmPrefix       = local.ssm_prefix
     namespace       = kubernetes_namespace_v1.worca.metadata[0].name
     secrets         = local.secrets
@@ -52,11 +63,12 @@ resource "helm_release" "bootstrap" {
     }
   })]
 
+  # Destroyed first: Argo CD then deletes Worca (its Ingress leaves the ALB) while the load balancer
+  # controller still runs.
   depends_on = [
     helm_release.argocd,
-    helm_release.cert_manager,
     helm_release.external_secrets,
-    helm_release.traefik,
     helm_release.cluster_autoscaler,
+    helm_release.aws_load_balancer_controller,
   ]
 }

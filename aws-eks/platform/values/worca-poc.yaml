@@ -4,6 +4,7 @@
 #
 #   controller   system node (on-demand), executor kubernetes, SQLite on gp3 (EBS)
 #   workers      spot node group scaled from 0 by Cluster Autoscaler; EFS shared with the controller
+#   ingress      the shared ALB (IngressGroup `worca`, ACM certificate), pods as targets
 #   sign-in      oauth2-proxy + Microsoft Entra ID, app roles in the `roles` claim
 #   secrets      Kubernetes Secrets made by External Secrets from SSM Parameter Store
 
@@ -65,20 +66,16 @@ storage:
     storageClassName: efs-sc   # EFS: elastic, billed per GB stored
     size: 20Gi
 
+# TLS ends at the ALB with the ACM certificate: no tls block, no certificate Secret.
 ingress:
   enabled: true
-  className: traefik
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt
+  className: alb
+  annotations: ${ingress_annotations}
   hosts:
     - host: ${host}
       paths:
         - path: /
           pathType: Prefix
-  tls:
-    - secretName: worca-tls
-      hosts:
-        - ${host}
 
 auth:
   enabled: true
