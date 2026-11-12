@@ -1,0 +1,13 @@
+# cp terraform.tfvars.example terraform.tfvars
+region             = "eu-central-1"
+availability_zones = ["eu-central-1a", "eu-central-1b"]
+name               = "worca-poc"
+environment        = "poc"
+kubernetes_version = "1.35" # aws eks describe-cluster-versions --query 'clusterVersions[?status==`STANDARD_SUPPORT`].clusterVersion'
+
+system_instance_types = ["t3a.large"]
+worker_instance_types = ["t3a.large", "t3.large", "m5a.large", "m6a.large"]
+worker_max_nodes      = 2
+
+# Others who may administer the cluster (the identity running `terraform apply` always can).
+# cluster_admin_arns = ["arn:aws:iam::123456789012:role/Admin"]

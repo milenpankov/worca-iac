@@ -1,0 +1,30 @@
+# gp3 (EBS, ReadWriteOnce): the controller's SQLite database. WaitForFirstConsumer: the volume is
+# made in the AZ of the node the controller lands on.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+parameters:
+  type: gp3
+  encrypted: "true"
+---
+# efs-sc (EFS, ReadWriteMany): /worca and /projects, shared by the controller and every worker
+# pod in any AZ. One access point per claim; files are owned by uid/gid 1000 (the worca user in
+# the controller and worker images), whoever writes them.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+provisioner: efs.csi.aws.com
+reclaimPolicy: Delete
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: {{ required "efsFileSystemId" .Values.efsFileSystemId | quote }}
+  directoryPerms: "750"
+  uid: "1000"
+  gid: "1000"
+  basePath: /worca

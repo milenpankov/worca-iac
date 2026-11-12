@@ -1,0 +1,96 @@
+# values/worca-poc.yaml — the Worca chart's values for the AWS EKS PoC (deploy/helm/worca in
+# worca-cc). Terraform fills the $${...} values (bootstrap.tf) and hands the result to the Argo CD
+# Application; edit here, then `terraform apply` in platform/.
+#
+#   controller   system node (on-demand), executor kubernetes, SQLite on gp3 (EBS)
+#   workers      spot node group scaled from 0 by Cluster Autoscaler; EFS shared with the controller
+#   sign-in      oauth2-proxy + Microsoft Entra ID, app roles in the `roles` claim
+#   secrets      Kubernetes Secrets made by External Secrets from SSM Parameter Store
+
+image:
+  registry: ${ecr_registry}
+  repository: ${controller_repository}
+  tag: "${image_tag}"
+  pullPolicy: Always   # the PoC re-pushes the same tag
+
+controller:
+  executor: kubernetes
+  nodeSelector:
+    worca.dev/pool: system
+  env:
+    TZ: "${timezone}"
+%{ if mock_mode ~}
+    WORCA_MOCK: "1"
+%{ endif ~}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      memory: 3Gi
+
+# CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, ...: Secret worca-secrets (SSM /worca/<env>/controller/*).
+secrets:
+  existingSecret: worca-secrets
+
+worker:
+  image:
+    registry: ${ecr_registry}
+    repository: ${worker_repository}
+  # Engine credentials agents may hold: Secret worca-worker-credentials (SSM /worca/<env>/worker/*).
+  credentialsSecret: worca-worker-credentials
+  nodeSelector:
+    worca.dev/pool: workers
+  tolerations:
+    - key: worca.dev/worker
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+  maxWorkers: 2
+  # A spot node takes 1-3 minutes to join: wait up to 10 for a Pending worker.
+  pendingTimeoutSeconds: 600
+  idleTimeoutSeconds: 600
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1536Mi
+    limits:
+      memory: 4Gi
+
+storage:
+  db:
+    storageClassName: gp3
+    size: 5Gi
+  shared:
+    storageClassName: efs-sc   # EFS: elastic, billed per GB stored
+    size: 20Gi
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  hosts:
+    - host: ${host}
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: worca-tls
+      hosts:
+        - ${host}
+
+auth:
+  enabled: true
+  oidc:
+    issuerUrl: https://login.microsoftonline.com/${tenant_id}/v2.0
+    jwksUrl: https://login.microsoftonline.com/${tenant_id}/discovery/v2.0/keys
+    clientId: ${client_id}
+    scope: openid email profile offline_access
+    emailClaim: preferred_username
+    teamsClaim: roles
+  allowedGroups: ${allowed_roles}
+  # client-secret and cookie-secret: Secret worca-auth (SSM /worca/<env>/auth/*).
+  existingSecret: worca-auth
+  nodeSelector:
+    worca.dev/pool: system

@@ -1,0 +1,20 @@
+# Filled by bootstrap.tf; the defaults only document the shape.
+region: ""
+efsFileSystemId: ""
+acmeEmail: ""
+ssmPrefix: /worca/poc
+namespace: worca
+
+# Kubernetes Secret name -> { ssm sub-path, keys } (each key from <ssmPrefix>/<path>/<key>).
+secrets: {}
+#  worca-auth:
+#    path: auth
+#    keys: [client-secret, cookie-secret]
+
+argocd:
+  namespace: argocd
+worca:
+  repoURL: ""
+  targetRevision: ""
+  path: deploy/helm/worca
+  values: {}

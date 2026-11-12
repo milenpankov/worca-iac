@@ -1,0 +1,36 @@
+# Worca itself, deployed by Argo CD from git: the chart at worca.path in worca.repoURL at
+# worca.targetRevision, with the PoC values (values/worca-poc.yaml). A branch revision follows the
+# branch: new commits are synced automatically. Deleting this Application deletes Worca's resources
+# (the finalizer), so `terraform destroy` cleans up before Argo CD itself goes.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: worca
+  namespace: {{ .Values.argocd.namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "worca.repoURL" .Values.worca.repoURL | quote }}
+    targetRevision: {{ required "worca.targetRevision" .Values.worca.targetRevision | quote }}
+    path: {{ .Values.worca.path }}
+    helm:
+      releaseName: worca
+      valuesObject:
+        {{- toYaml .Values.worca.values | nindent 8 }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: worca-bootstrap
+description: >-
+  What the Worca PoC needs in the cluster besides the add-ons: storage classes, the Let's Encrypt
+  issuer, External Secrets from SSM, and the Argo CD Application that deploys Worca from git.
+type: application
+version: 0.1.0

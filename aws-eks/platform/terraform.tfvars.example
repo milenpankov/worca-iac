@@ -1,0 +1,21 @@
+# cp terraform.tfvars.example terraform.tfvars
+worca_host = "worca.example.com"
+acme_email = "you@example.com"
+# route53_zone_id = "Z0123456789ABCDEFGHIJ"   # optional: create the DNS record there
+
+# Microsoft Entra ID (single-tenant app registration; README: Sign-in)
+entra_tenant_id = "00000000-0000-0000-0000-000000000000"
+entra_client_id = "00000000-0000-0000-0000-000000000000"
+allowed_roles   = ["worca.team-a"]
+
+# What Argo CD deploys
+worca_repo_url  = "https://github.com/milenpankov/worca-cc.git"
+worca_revision  = "feat/worker-containers"
+worca_image_tag = "poc"
+
+# First end-to-end check without model calls
+mock_mode = true
+
+# SSM SecureStrings under /worca/<environment>/controller/ and /worker/ (names = env variables)
+controller_env_secrets = ["CLAUDE_CODE_OAUTH_TOKEN"]
+worker_env_secrets     = ["CLAUDE_CODE_OAUTH_TOKEN"]
