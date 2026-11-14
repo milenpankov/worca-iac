@@ -1,0 +1,7 @@
+apiVersion: v2
+name: worca-bootstrap
+description: >-
+  What Worca on OpenShift needs besides the chart: the Vault Secrets Operator's login and synced
+  Secrets, extra manifests for the platform, and (with Argo CD) the Application that deploys Worca.
+type: application
+version: 0.1.0

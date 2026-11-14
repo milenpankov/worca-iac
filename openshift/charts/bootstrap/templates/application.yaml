@@ -1,0 +1,38 @@
+{{- if .Values.application.enabled }}
+# Worca itself, deployed by this project's Argo CD from git: the chart at application.path in
+# application.repoURL at application.targetRevision. A branch revision follows the branch.
+# Deleting this Application deletes Worca's resources (the finalizer), so `terraform destroy`
+# cleans up before Argo CD itself goes.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: worca
+  namespace: {{ .Values.application.argocdNamespace | default .Release.Namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ required "application.repoURL" .Values.application.repoURL | quote }}
+    targetRevision: {{ required "application.targetRevision" .Values.application.targetRevision | quote }}
+    path: {{ .Values.application.path }}
+    helm:
+      releaseName: {{ .Values.application.release }}
+      values: |
+        {{- .Values.application.values | nindent 8 }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Release.Namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+{{- end }}

@@ -1,0 +1,18 @@
+# The repository Worca's chart comes from (public: no credentials), reached through the proxy.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: worca-repo
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  name: worca
+  type: git
+  url: {{ required "repo.url" .Values.repo.url | quote }}
+  {{- with .Values.repo.proxy }}
+  proxy: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.repo.noProxy }}
+  noProxy: {{ . | quote }}
+  {{- end }}

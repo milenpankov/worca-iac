@@ -1,0 +1,23 @@
+# Set by Terraform (bootstrap.tf).
+vault:
+  address: ""          # empty = the operator's default VaultConnection
+  caSecret: ""
+  namespace: ""
+  method: kubernetes   # kubernetes | approle
+  mount: kubernetes
+  role: worca          # kubernetes: the Vault role
+  serviceAccount: ""   # kubernetes: the account that logs in
+  roleId: ""           # approle
+  secretIdRef: ""      # approle: Secret with the secret ID under `id`
+  kvMount: kv
+  refresh: 1h
+secrets: {}            # Secret name -> { path, restart: [{ kind, name }] }
+extraManifests: []
+application:
+  enabled: false
+  argocdNamespace: ""
+  release: worca
+  repoURL: ""
+  targetRevision: ""
+  path: deploy/helm/worca
+  values: ""           # the chart's values as YAML text (nulls survive)

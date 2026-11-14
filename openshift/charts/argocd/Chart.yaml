@@ -1,0 +1,7 @@
+apiVersion: v2
+name: worca-argocd
+description: >-
+  An Argo CD instance of the OpenShift GitOps operator in Worca's project, signed in through
+  OpenShift's login, and the repository Worca's chart comes from.
+type: application
+version: 0.1.0

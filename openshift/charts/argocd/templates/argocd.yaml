@@ -1,0 +1,74 @@
+# Managed by the cluster's OpenShift GitOps operator: it runs this instance in this project and
+# lets it manage this project only. Sign-in is OpenShift's own (Dex), no local admin.
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: {{ .Values.name }}
+spec:
+  # Explicit, so an operator update that changes the default cannot re-own resources.
+  resourceTrackingMethod: annotation
+  disableAdmin: true
+  extraConfig:
+    # Manage only what this project's service accounts may touch.
+    resource.respectRBAC: normal
+    timeout.reconciliation: 300s
+  monitoring:
+    disableMetrics: true
+  sso:
+    provider: dex
+    dex:
+      openShiftOAuth: true
+      resources:
+        requests: { cpu: 25m, memory: 64Mi }
+        limits: { cpu: 250m, memory: 256Mi }
+      {{- with .Values.groups }}
+      groups:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  rbac:
+    defaultPolicy: ""
+    scopes: "[groups]"
+    policy: |
+      {{- range .Values.admins }}
+      g, {{ . }}, role:admin
+      {{- end }}
+      {{- range .Values.groups }}
+      {{- if not (has . $.Values.admins) }}
+      g, {{ . }}, role:readonly
+      {{- end }}
+      {{- end }}
+  server:
+    {{- with .Values.host }}
+    host: {{ . }}
+    {{- end }}
+    route:
+      enabled: true
+      tls:
+        termination: reencrypt
+        insecureEdgeTerminationPolicy: Redirect
+    resources:
+      requests: { cpu: 25m, memory: 128Mi }
+      limits: { cpu: 500m, memory: 512Mi }
+  controller:
+    resources:
+      requests: { cpu: 125m, memory: 512Mi }
+      limits: { cpu: "1", memory: 2Gi }
+  repo:
+    {{- with .Values.proxy }}
+    env:
+      {{- range $k, $v := . }}
+      - name: {{ $k }}
+        value: {{ $v | quote }}
+      {{- end }}
+    {{- end }}
+    resources:
+      requests: { cpu: 50m, memory: 256Mi }
+      limits: { cpu: "1", memory: 1Gi }
+  redis:
+    resources:
+      requests: { cpu: 25m, memory: 64Mi }
+      limits: { cpu: 250m, memory: 256Mi }
+  applicationSet:
+    enabled: false
+  notifications:
+    enabled: false

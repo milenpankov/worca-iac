@@ -1,0 +1,10 @@
+# Set by Terraform (argocd.tf).
+name: worca
+host: ""            # empty = the operator's default route host
+groups: []          # OpenShift groups that may sign in; empty = any signed-in user (no rights)
+admins: []          # groups with role:admin; the others in `groups` get role:readonly
+proxy: {}           # HTTPS_PROXY etc. for the repo server (git over the proxy)
+repo:
+  url: ""
+  proxy: ""
+  noProxy: ""

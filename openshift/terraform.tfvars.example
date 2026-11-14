@@ -1,0 +1,84 @@
+# Copy to terraform.tfvars (gitignored). Secrets go in the environment, never here:
+#   export TF_VAR_token=...                         # admin in the project (README: a service account)
+#   export TF_VAR_registry_username=... TF_VAR_registry_password=...
+#   export TF_VAR_vault_approle_secret_id=...       # only with vault.auth_method = "approle"
+
+api_url   = "https://api.mycluster.example.com:6443"
+ca_file   = "" # e.g. "certs/api-ca.pem" when the API's CA is private
+namespace = "worca"
+
+registry = "registry.example.com"
+images = {
+  worca_controller = "team/worca"
+  worca_worker     = "team/worca-worker"
+  oauth2_proxy     = "mirror/oauth2-proxy/oauth2-proxy"
+}
+worca_image_tag = "poc"
+
+# Plain OpenShift: restricted-v2 refuses uid 1000, so grant nonroot-v2 (needs a cluster admin).
+# A platform whose default SCC already allows any non-root uid: leave it empty.
+grant_scc = "nonroot-v2"
+pod_security = {
+  fs_group            = null # the project's range
+  supplemental_groups = []   # e.g. [4711]: the group an NFS share grants write access to
+}
+
+http_proxy = "" # e.g. "http://proxy.example.com:8080"
+no_proxy   = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.example.com"
+
+worca_host    = "worca-myproject.apps.mycluster.example.com"
+ingress_class = "openshift-default"
+
+storage = {
+  db_class     = null      # the cluster default (ReadWriteOnce)
+  shared_class = "nfs-rwx" # a ReadWriteMany class
+  shared_size  = "50Gi"
+  # A statically provisioned NFS volume instead: let this root make the claim with no class and
+  # bind it (by a PV your platform's self-service creates, given in extra_manifests):
+  #   shared_class     = ""
+  #   shared_precreate = true
+}
+
+resources = {
+  max_workers = 2
+}
+
+vault = {
+  address     = "" # empty = the operator's default VaultConnection
+  namespace   = "" # Vault Enterprise / OpenBao namespace, if any
+  auth_method = "kubernetes"
+  auth_mount  = "kubernetes"
+  role        = "worca"
+  kv_mount    = "kv"
+}
+# Kubernetes auth needs system:auth-delegator for the login account: true when you may create a
+# ClusterRoleBinding, or a platform self-service resource in extra_manifests.
+create_auth_delegator_binding = false
+
+argocd = {
+  mode   = "operator"
+  groups = ["worca-admins", "worca-viewers"]
+  admins = ["worca-admins"]
+}
+
+oidc = {
+  # Microsoft Entra ID, for example:
+  issuer_url  = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+  jwks_url    = "https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys"
+  client_id   = "<application-id>"
+  email_claim = "preferred_username"
+  teams_claim = "roles"
+}
+
+# Platform-specific objects for the project, e.g. a self-service that creates the NFS volume or
+# the auth-delegator binding (the kinds and fields are your platform's):
+# extra_manifests = [
+#   {
+#     apiVersion = "selfservice.example.com/v1alpha1"
+#     kind       = "NFSVolume"
+#     metadata   = { name = "worca-shared" }
+#     spec       = { server = "filer.example.com", path = "/vol/worca", pvcName = "worca-shared", serviceAccountName = "worca-worker" }
+#   },
+# ]
+
+mock_mode = false

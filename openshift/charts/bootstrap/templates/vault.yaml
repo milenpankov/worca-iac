@@ -1,0 +1,63 @@
+# The Vault Secrets Operator (installed cluster-wide by the platform) logs in for this project
+# only and syncs one KV v2 entry per Kubernetes Secret.
+{{- with .Values.vault }}
+{{- if .address }}
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: vault
+spec:
+  address: {{ .address | quote }}
+  {{- with .caSecret }}
+  caCertSecretRef: {{ . }}
+  {{- end }}
+---
+{{- end }}
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: vault
+spec:
+  {{- if .address }}
+  vaultConnectionRef: vault
+  {{- end }}
+  {{- with .namespace }}
+  namespace: {{ . | quote }}
+  {{- end }}
+  mount: {{ .mount }}
+  {{- if eq .method "kubernetes" }}
+  method: kubernetes
+  kubernetes:
+    role: {{ required "vault.role" .role }}
+    serviceAccount: {{ required "vault.serviceAccount" .serviceAccount }}
+  {{- else }}
+  method: appRole
+  appRole:
+    roleId: {{ required "vault.roleId" .roleId | quote }}
+    secretRef: {{ required "vault.secretIdRef" .secretIdRef }}
+  {{- end }}
+{{- end }}
+{{- range $name, $s := .Values.secrets }}
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: {{ $name }}
+spec:
+  vaultAuthRef: vault
+  {{- with $.Values.vault.namespace }}
+  namespace: {{ . | quote }}
+  {{- end }}
+  type: kv-v2
+  mount: {{ $.Values.vault.kvMount }}
+  path: {{ $s.path | quote }}
+  refreshAfter: {{ $.Values.vault.refresh }}
+  destination:
+    name: {{ $name }}
+    create: true
+  {{- with $s.restart }}
+  # A changed value restarts the pods that read it at start.
+  rolloutRestartTargets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
