@@ -77,14 +77,15 @@ ingress:
         - path: /
           pathType: Prefix
 
-# Entra ID app registration "Worca PoC" (single tenant). Not secrets: the tenant and client ids
-# are in every sign-in URL. Its redirect URI: https://<worca_host>/oauth2/callback.
+# Entra ID app registration (single tenant). Its tenant and client ids come from SSM
+# (<ssm_prefix>/auth/tenant-id and client-id, String): not secrets (every sign-in URL shows them),
+# but kept out of git. Its redirect URI: https://<worca_host>/oauth2/callback.
 auth:
   enabled: true
   oidc:
-    issuerUrl: https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/v2.0
-    jwksUrl: https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000/discovery/v2.0/keys
-    clientId: 00000000-0000-0000-0000-000000000000
+    issuerUrl: https://login.microsoftonline.com/${tenant_id}/v2.0
+    jwksUrl: https://login.microsoftonline.com/${tenant_id}/discovery/v2.0/keys
+    clientId: ${client_id}
     scope: openid email profile offline_access
     emailClaim: preferred_username
     # App roles, when assigned, become teams. To admit only some of them, list their values in

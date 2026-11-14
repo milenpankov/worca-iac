@@ -37,8 +37,8 @@ Ingresses in that group (`alb_annotations` in `platform/addons.tf`), not more lo
     elsewhere, delegate one subdomain to Route 53 once with [dns/route53](../dns/route53); it
     stays when this deployment is destroyed.
   - **Otherwise** you add the certificate's validation CNAMEs and two CNAMEs to the ALB yourself.
-- **The Entra app registration** for Worca's sign-in is set in
-  [values/worca-poc.yaml](platform/values/worca-poc.yaml) (`auth.oidc`: tenant and client id).
+- **The Entra app registration** for Worca's sign-in: its tenant and client id go to SSM
+  (step 3), the rest is `auth` in [values/worca-poc.yaml](platform/values/worca-poc.yaml).
   Everyone in the tenant may sign in (`allowedGroups: []`).
   - **Redirect URI** (Web): add `https://<worca_host>/oauth2/callback`
     (`terraform output entra_redirect_uri`).
@@ -76,11 +76,14 @@ The nodes are x86_64, so build on an x86_64 machine (or with `docker buildx --pl
 `docker-build` packs the package with npm; npm 12 drops `npm-shrinkwrap.json` from the tarball and
 the image build fails, so use npm 10 or 11.
 
-**3. Secrets in SSM Parameter Store.** Create these as SecureStrings, so they never pass through
-Terraform or its state. The platform root lists the exact names: `terraform output ssm_parameters`.
+**3. Secrets in SSM Parameter Store.** The Entra tenant and client id are plain `String`s (not
+secret, just kept out of git; `platform` reads them). The rest are SecureStrings, so they never
+pass through Terraform or its state; `terraform output ssm_parameters` lists their names.
 
 ```bash
 P=/worca/poc
+aws ssm put-parameter --type String --name $P/auth/tenant-id --value '<Directory (tenant) ID>'
+aws ssm put-parameter --type String --name $P/auth/client-id --value '<Application (client) ID>'
 aws ssm put-parameter --type SecureString --name $P/auth/client-secret --value '<Entra client secret>'
 aws ssm put-parameter --type SecureString --name $P/auth/cookie-secret --value "$(openssl rand -base64 32 | tr -- '+/' '-_')"
 aws ssm put-parameter --type SecureString --name $P/controller/CLAUDE_CODE_OAUTH_TOKEN --value '<token>'

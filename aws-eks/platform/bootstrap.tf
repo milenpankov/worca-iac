@@ -5,6 +5,13 @@ data "aws_ecr_repository" "images" {
   name     = each.value
 }
 
+# The Entra app registration's tenant and client id: String parameters you create (README:
+# Secrets). Not secret, so read here; only the client secret goes through External Secrets.
+data "aws_ssm_parameter" "entra" {
+  for_each = toset(["tenant-id", "client-id"])
+  name     = "${local.infra.ssm_prefix}/auth/${each.key}"
+}
+
 locals {
   ssm_prefix   = local.infra.ssm_prefix
   ecr_registry = split("/", data.aws_ecr_repository.images["controller"].repository_url)[0]
@@ -17,6 +24,8 @@ locals {
     host                  = var.worca_host
     timezone              = var.timezone
     mock_mode             = var.mock_mode
+    tenant_id             = data.aws_ssm_parameter.entra["tenant-id"].insecure_value
+    client_id             = data.aws_ssm_parameter.entra["client-id"].insecure_value
     # The ALB IngressGroup's settings, plus the health check of oauth2-proxy (Worca's Ingress
     # backend): its /ping answers 200 without a session.
     ingress_annotations = jsonencode(merge(local.alb_annotations, {
