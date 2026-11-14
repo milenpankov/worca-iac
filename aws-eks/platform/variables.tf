@@ -18,6 +18,18 @@ variable "worca_revision" {
   default     = "feat/worker-containers"
 }
 
+variable "image_repositories" {
+  description = "ECR repositories of the controller and worker images (worca-iac/registry/ecr), in this account and region."
+  type = object({
+    controller = string
+    worker     = string
+  })
+  default = {
+    controller = "worca-poc/worca"
+    worker     = "worca-poc/worca-worker"
+  }
+}
+
 variable "worca_image_tag" {
   description = "Tag of the controller image in ECR; worker images are <tag>-<engine> (README: Images)."
   type        = string

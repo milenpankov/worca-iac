@@ -1,10 +1,18 @@
+# The images' repositories (worca-iac/registry/ecr), by name: an apply fails here, not in a pod
+# stuck pulling, when they are missing.
+data "aws_ecr_repository" "images" {
+  for_each = var.image_repositories
+  name     = each.value
+}
+
 locals {
-  ssm_prefix = local.infra.ssm_prefix
+  ssm_prefix   = local.infra.ssm_prefix
+  ecr_registry = split("/", data.aws_ecr_repository.images["controller"].repository_url)[0]
 
   worca_values = yamldecode(templatefile("${path.module}/values/worca-poc.yaml", {
-    ecr_registry          = local.infra.ecr_registry
-    controller_repository = trimprefix(local.infra.ecr_repositories["worca"], "${local.infra.ecr_registry}/")
-    worker_repository     = trimprefix(local.infra.ecr_repositories["worca-worker"], "${local.infra.ecr_registry}/")
+    ecr_registry          = local.ecr_registry
+    controller_repository = data.aws_ecr_repository.images["controller"].name
+    worker_repository     = data.aws_ecr_repository.images["worker"].name
     image_tag             = var.worca_image_tag
     host                  = var.worca_host
     timezone              = var.timezone

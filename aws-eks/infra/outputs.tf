@@ -33,14 +33,6 @@ output "ssm_prefix" {
   value       = local.ssm_prefix
 }
 
-output "ecr_registry" {
-  value = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${var.region}.amazonaws.com"
-}
-
-output "ecr_repositories" {
-  value = { for k, r in aws_ecr_repository.this : k => r.repository_url }
-}
-
 output "node_pools" {
   description = "Labels and taints the Worca values pin pods with."
   value = {

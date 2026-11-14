@@ -19,7 +19,7 @@ Two Terraform roots, applied in order, each with its own state:
 
 | Root | Providers | What it creates |
 |---|---|---|
-| [infra/](infra) | aws | VPC (public subnets, no NAT), EKS, an on-demand **system** node group (1 node), a spot **workers** node group (0..N, tainted), EBS and EFS CSI add-ons, EFS, ECR repositories, Pod Identity roles (the CSI drivers, the AWS Load Balancer Controller, Cluster Autoscaler, External Secrets reading only `/worca/<env>/*`) |
+| [infra/](infra) | aws | VPC (public subnets, no NAT), EKS, an on-demand **system** node group (1 node), a spot **workers** node group (0..N, tainted), EBS and EFS CSI add-ons, EFS, Pod Identity roles (the CSI drivers, the AWS Load Balancer Controller, Cluster Autoscaler, External Secrets reading only `/worca/<env>/*`) |
 | [platform/](platform) | helm, kubernetes, aws | the AWS Load Balancer Controller, the ACM certificate, External Secrets, Cluster Autoscaler, Argo CD (on the ALB, its own `admin` login); then [charts/bootstrap](platform/charts/bootstrap): storage classes `gp3` and `efs-sc`, the SSM-backed ExternalSecrets, and the Argo CD Application that deploys Worca with [values/worca-poc.yaml](platform/values/worca-poc.yaml) |
 
 **One ALB for everything.** Worca's and Argo CD's Ingresses share the IngressGroup `worca`, so
@@ -59,10 +59,11 @@ $(terraform output -raw kubeconfig_command)    # kubectl now talks to the cluste
 ```
 
 **2. Images.** Until worca-cc publishes worker images, build them from the branch and push them to
-the ECR repositories (`terraform output ecr_repositories`):
+the ECR repositories of [registry/ecr](../registry/ecr) (set up once; they and the images stay
+when this deployment is destroyed, so this step is only needed for new images):
 
 ```bash
-REG=$(terraform -chdir=infra output -raw ecr_registry)
+REG=$(terraform -chdir=../registry/ecr output -raw registry)
 aws ecr get-login-password | docker login --username AWS --password-stdin "$REG"
 cd ../worca-cc            # on feat/worker-containers
 node tools/docker-build.mjs --tag "$REG/worca-poc/worca:poc"
@@ -143,15 +144,20 @@ Set `mock_mode = false` and apply for real runs.
 - **Values:** edit `platform/values/worca-poc.yaml`, then `terraform apply` in `platform/`.
 - **Argo CD UI:** `https://<argocd_host>`, user `admin`.
 
-## Remove everything
+## Tear down (between demo periods)
 
 ```bash
-cd platform && terraform destroy   # Worca (Argo CD deletes its resources first), add-ons, the ALB
-cd ../infra && terraform destroy   # cluster, nodes, EFS, ECR (images included)
+cd platform && terraform destroy   # Worca (Argo CD deletes its resources first), add-ons, the ALB, DNS records
+cd ../infra && terraform destroy   # cluster, nodes, EFS
 ```
 
 Destroy `platform` first: the ALB and the volumes are made from inside the cluster, and the VPC
-can't be deleted while they exist. The SSM parameters stay. Delete them with
+can't be deleted while they exist. What stays, for the next bring-up (`infra`, then `platform`):
+the images ([registry/ecr](../registry/ecr), ~$0.10/month), the DNS zone
+([dns/route53](../dns/route53), $0.50/month) and the SSM parameters (free).
+
+**Remove everything** for good: the above, then `terraform destroy` in `../registry/ecr` and
+`../dns/route53` (and the NS records at the parent domain), and the SSM parameters:
 `aws ssm delete-parameters --names $(aws ssm get-parameters-by-path --path /worca/poc --recursive --query 'Parameters[].Name' --output text)`.
 
 ## Cost (eu-central-1, on-demand list prices, approximate)
@@ -166,7 +172,8 @@ can't be deleted while they exist. The SSM parameters stay. Delete them with
 | EBS (2 node disks of 40 GB while running + 5 GB database) | $5–8 |
 | EFS (a few GB) | $1–3 |
 | Public IPv4 on nodes | $4–8 |
-| ECR, SSM standard parameters, Pod Identity | ~$0 |
+| ECR (kept, registry/ecr), Route 53 zone (kept, dns/route53) | ~$0.60 |
+| SSM standard parameters, Pod Identity | $0 |
 | **Total** | **≈ $165–180** |
 
 Model tokens are extra and usually larger. The control plane is paid whether or not anything
