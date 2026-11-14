@@ -12,7 +12,7 @@ resource "aws_acm_certificate" "this" {
 }
 
 resource "aws_route53_record" "acm_validation" {
-  for_each = local.zone_id == "" ? {} : {
+  for_each = var.route53_zone == "" ? {} : {
     for o in aws_acm_certificate.this.domain_validation_options : o.domain_name => o
   }
 
@@ -25,7 +25,7 @@ resource "aws_route53_record" "acm_validation" {
 }
 
 resource "aws_acm_certificate_validation" "this" {
-  count = local.zone_id == "" ? 0 : 1
+  count = var.route53_zone == "" ? 0 : 1
 
   certificate_arn         = aws_acm_certificate.this.arn
   validation_record_fqdns = [for r in aws_route53_record.acm_validation : r.fqdn]

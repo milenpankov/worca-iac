@@ -85,8 +85,8 @@ resource "helm_release" "cluster_autoscaler" {
 }
 
 # Argo CD: deploys Worca from git (the Application is in the bootstrap chart). Its UI is on the
-# same ALB at argocd_host, with Argo CD's own login: the `admin` user and the password it
-# generates at install (output argocd_admin_password_command).
+# same ALB at argocd_host (the Ingress below), with Argo CD's own login: the `admin` user and the
+# password it generates at install (output argocd_admin_password_command).
 resource "helm_release" "argocd" {
   name             = "argocd"
   namespace        = "argocd"
@@ -102,17 +102,50 @@ resource "helm_release" "argocd" {
     configs = {
       params = { "server.insecure" = true } # TLS ends at the ALB
     }
-    server = {
-      ingress = {
-        enabled          = true
-        ingressClassName = "alb"
-        hostname         = var.argocd_host
-        annotations = merge(local.alb_annotations, {
-          "alb.ingress.kubernetes.io/healthcheck-path" = "/healthz"
-        })
-      }
-    }
   })]
 
   depends_on = [helm_release.aws_load_balancer_controller]
+}
+
+# Argo CD's Ingress, made here rather than by its chart so Terraform waits for the ALB it brings
+# up (the `worca` IngressGroup's) and knows its host name (dns.tf). The certificate must be issued
+# first: the controller cannot make the HTTPS listener with a pending one.
+resource "kubernetes_ingress_v1" "argocd" {
+  metadata {
+    name      = "argocd-server"
+    namespace = helm_release.argocd.namespace
+    annotations = merge(local.alb_annotations, {
+      "alb.ingress.kubernetes.io/healthcheck-path" = "/healthz"
+    })
+  }
+
+  spec {
+    ingress_class_name = "alb"
+    rule {
+      host = var.argocd_host
+      http {
+        path {
+          path      = "/"
+          path_type = "Prefix"
+          backend {
+            service {
+              name = "argocd-server"
+              port {
+                name = "http"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  # Without route53_zone the certificate waits for your DNS records (acm_validation_records), and
+  # so does this, up to its timeout: add them, then apply again.
+  wait_for_load_balancer = true
+  timeouts {
+    create = "15m"
+  }
+
+  depends_on = [aws_acm_certificate_validation.this]
 }

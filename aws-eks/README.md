@@ -104,13 +104,14 @@ terraform apply
 ```
 
 **Without** `route53_zone`, do the DNS once by hand:
-1. Add the CNAMEs from `terraform output acm_validation_records`. ACM issues the certificate a
-   few minutes later; until then the ALB has no HTTPS listener.
-2. `terraform apply` again: the first apply may finish before the ALB exists.
+1. The first apply waits up to 15 minutes for the ALB, which can't get its HTTPS listener
+   before the certificate is issued, and may stop there. Add the CNAMEs from
+   `terraform output acm_validation_records`; ACM issues the certificate a few minutes later.
+2. `terraform apply` again.
 3. CNAME both hosts to `terraform output load_balancer_hostname`.
 
-**With** `route53_zone`, the certificate is validated during the first apply, and the second
-`apply` creates the host records (the first may finish before the ALB exists).
+**With** `route53_zone`, one apply does it all: it validates the certificate, waits for the ALB
+and points both hosts at it.
 
 Argo CD then syncs Worca. Watch it with:
 

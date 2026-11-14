@@ -12,7 +12,7 @@ output "entra_redirect_uri" {
 }
 
 output "load_balancer_hostname" {
-  description = "The ALB. CNAME both hosts to it unless route53_zone is set. Empty on the very first apply until the ALB exists: run apply again."
+  description = "The ALB. CNAME both hosts to it unless route53_zone is set."
   value       = local.lb_hostname
 }
 
