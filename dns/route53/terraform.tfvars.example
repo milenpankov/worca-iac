@@ -1,4 +1,4 @@
 # cp terraform.tfvars.example terraform.tfvars
 domain    = "example.com"
-zone_name = "worca"     # -> hosted zone worca.example.com
+zone_name = "aws"       # -> hosted zone aws.example.com (hosts worca.aws..., argocd.aws...)
 name      = "worca-poc" # tag Project

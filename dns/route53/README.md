@@ -2,7 +2,7 @@
 
 One hosted zone, `<zone_name>.<domain>`, for a domain whose DNS is hosted elsewhere (DigitalOcean,
 the registrar, ...). The deployments put their records in it: the ACM validation records and the
-aliases to their load balancer ([aws-eks/platform](../../aws-eks/platform): `route53_zone`).
+aliases to their load balancer ([aws-eks/platform](../../aws-eks/platform) and [aws-ecs](../../aws-ecs): `route53_zone`).
 
 It is separate from the deployments on purpose. Every new hosted zone gets new name servers, so a
 zone created and destroyed with the deployment would need the delegation changed each time. Kept,
@@ -18,10 +18,10 @@ terraform output -raw delegation
 ```
 
 At the parent domain's DNS provider, add the four NS records `delegation` prints (name
-`zone_name`, e.g. `worca`). Check:
+`zone_name`, e.g. `aws`). Check:
 
 ```bash
-dig +short NS worca.example.com          # the four awsdns name servers
+dig +short NS aws.example.com            # the four awsdns name servers
 ```
 
 ## Remove

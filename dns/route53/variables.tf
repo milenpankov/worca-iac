@@ -12,7 +12,7 @@ variable "domain" {
 variable "zone_name" {
   description = "The label delegated to Route 53: the hosted zone is <zone_name>.<domain>."
   type        = string
-  default     = "worca"
+  default     = "aws"
 }
 
 variable "region" {

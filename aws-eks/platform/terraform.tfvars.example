@@ -1,17 +1,17 @@
 # cp terraform.tfvars.example terraform.tfvars
-worca_host  = "worca.example.com"
-argocd_host = "argocd.worca.example.com"
+worca_host  = "worca.aws.example.com"
+argocd_host = "argocd.aws.example.com"
 # Optional: a Route 53 zone both hosts are in (worca-iac/dns/route53): certificate validation and
 # the hosts' records are created there on every apply.
-# route53_zone = "worca.example.com"
+# route53_zone = "aws.example.com"
 
 # What Argo CD deploys
 worca_repo_url  = "https://github.com/milenpankov/worca-cc.git"
 worca_revision  = "feat/worker-containers"
 worca_image_tag = "poc"
 
-# First end-to-end check without model calls
-mock_mode = true
+# true: canned agent replies, no model tokens
+mock_mode = false
 
 # SSM SecureStrings under /worca/<environment>/controller/ and /worker/ (names = env variables)
 controller_env_secrets = ["CLAUDE_CODE_OAUTH_TOKEN"]
