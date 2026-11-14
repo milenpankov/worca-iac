@@ -7,6 +7,7 @@ sign-in through your own identity provider.
 | Platform | Folder |
 |---|---|
 | AWS EKS | [aws-eks/](aws-eks) |
+| AWS ECS (controller on EC2; workers on Fargate, Fargate Spot or spot EC2) | [aws-ecs/](aws-ecs) |
 
 Shared, long-lived pieces the deployments use:
 

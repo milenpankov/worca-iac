@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars (not committed) and fill in.
+region             = "eu-central-1"
+name               = "worca-ecs"
+environment        = "poc" # SSM path /worca/poc/
+availability_zones = ["eu-central-1a", "eu-central-1b"]
+
+worca_host   = "worca.example.com"
+route53_zone = "example.com" # empty: add the certificate and host records yourself (outputs)
+
+# Images from ../registry/ecr, built from worca-cc (README: Images).
+controller_image_tag = "poc"
+worker_engines       = { claude = "poc-claude" }
+
+mock_mode = false # true: canned agent replies, no model tokens
+timezone  = "Europe/Berlin"
