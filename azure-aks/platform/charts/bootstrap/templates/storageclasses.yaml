@@ -1,0 +1,25 @@
+# azurefile-nfs (Azure Files premium, NFS 4.1, ReadWriteMany): /worca and /projects, shared by the
+# controller and every worker pod. NFS rather than SMB: POSIX permissions, symlinks and file modes
+# behave as git and the engines expect. Premium shares are provisioned (100 GiB minimum, billed
+# whether used or not). The CSI driver makes the storage account in the node resource group, reached
+# through the nodes subnet's service endpoint. No root squash: the chart's prepare step chowns the
+# directories to uid 1000 once.
+#
+# The database uses AKS's built-in managed-csi-premium (Premium SSD, ReadWriteOnce): SQLite never
+# goes on a network file system.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: azurefile-nfs
+provisioner: file.csi.azure.com
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+volumeBindingMode: Immediate
+parameters:
+  protocol: nfs
+  skuName: Premium_LRS
+  rootSquashType: NoRootSquash
+mountOptions:
+  - nconnect=4
+  - noresvport
+  - actimeo=30

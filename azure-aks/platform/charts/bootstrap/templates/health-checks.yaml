@@ -1,0 +1,47 @@
+# Application Gateway for Containers probes each backend; by default GET / must answer 200-399.
+# Point it at paths that answer 200 without a session: oauth2-proxy's /ping, Argo CD's /healthz.
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: worca-auth
+  namespace: {{ .Values.namespace }}
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: worca-auth
+    namespace: {{ .Values.namespace }}
+  default:
+    interval: 15s
+    timeout: 5s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    http:
+      path: /ping
+      match:
+        statusCodes:
+          - start: 200
+            end: 299
+---
+apiVersion: alb.networking.azure.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: argocd-server
+  namespace: {{ .Values.argocd.namespace }}
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: argocd-server
+    namespace: {{ .Values.argocd.namespace }}
+  default:
+    interval: 15s
+    timeout: 5s
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    http:
+      path: /healthz
+      match:
+        statusCodes:
+          - start: 200
+            end: 299

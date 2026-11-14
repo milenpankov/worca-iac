@@ -1,0 +1,24 @@
+# Let's Encrypt, answered by DNS-01 in the Azure DNS zone (worca-iac/dns/azure): cert-manager's
+# Workload Identity may edit that zone only. The Ingresses ask for it with the annotation
+# cert-manager.io/cluster-issuer: letsencrypt; AGC serves the certificate from the TLS Secret.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: {{ if .Values.letsencrypt.staging }}https://acme-staging-v02.api.letsencrypt.org/directory{{ else }}https://acme-v02.api.letsencrypt.org/directory{{ end }}
+    {{- with .Values.letsencrypt.email }}
+    email: {{ . | quote }}
+    {{- end }}
+    privateKeySecretRef:
+      name: letsencrypt-account
+    solvers:
+      - dns01:
+          azureDNS:
+            environment: AzurePublicCloud
+            subscriptionID: {{ required "azureDNS.subscriptionID" .Values.letsencrypt.azureDNS.subscriptionID | quote }}
+            resourceGroupName: {{ required "azureDNS.resourceGroupName" .Values.letsencrypt.azureDNS.resourceGroupName | quote }}
+            hostedZoneName: {{ required "azureDNS.hostedZoneName" .Values.letsencrypt.azureDNS.hostedZoneName | quote }}
+            managedIdentity:
+              clientID: {{ required "azureDNS.clientID" .Values.letsencrypt.azureDNS.clientID | quote }}

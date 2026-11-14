@@ -1,0 +1,8 @@
+apiVersion: v2
+name: worca-bootstrap
+description: >-
+  What the Worca PoC on AKS needs in the cluster besides the add-ons: the Azure Files NFS storage
+  class, the Let's Encrypt issuer, External Secrets from Key Vault, the AGC health checks, and the
+  Argo CD Application that deploys Worca from git.
+type: application
+version: 0.1.0

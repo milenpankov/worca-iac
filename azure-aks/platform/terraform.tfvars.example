@@ -1,0 +1,15 @@
+# cp terraform.tfvars.example terraform.tfvars
+worca_host        = "worca.azure.example.com"
+argocd_host       = "argocd.azure.example.com"
+letsencrypt_email = "" # optional: expiry notices
+
+# What Argo CD deploys
+worca_repo_url  = "https://github.com/milenpankov/worca-cc.git"
+worca_revision  = "feat/worker-containers"
+worca_image_tag = "poc"
+
+mock_mode = false
+
+# Key Vault secrets controller-<NAME> and worker-<NAME> (underscores as dashes)
+controller_env_secrets = ["CLAUDE_CODE_OAUTH_TOKEN"]
+worker_env_secrets     = ["CLAUDE_CODE_OAUTH_TOKEN"]

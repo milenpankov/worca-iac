@@ -1,0 +1,21 @@
+# Filled by bootstrap.tf; the defaults only document the shape.
+namespace: worca
+keyVault:
+  url: ""
+# Kubernetes Secret name -> { namespace (default: .namespace), labels, data: { key: <Key Vault secret name> } }
+secrets: {}
+letsencrypt:
+  email: ""
+  staging: false
+  azureDNS:
+    subscriptionID: ""
+    resourceGroupName: ""
+    hostedZoneName: ""
+    clientID: ""
+argocd:
+  namespace: argocd
+worca:
+  repoURL: ""
+  targetRevision: ""
+  path: deploy/helm/worca
+  values: {}

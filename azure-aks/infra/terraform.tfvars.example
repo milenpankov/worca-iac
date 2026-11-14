@@ -1,0 +1,14 @@
+# cp terraform.tfvars.example terraform.tfvars
+subscription_id = "00000000-0000-0000-0000-000000000000"
+tenant_id       = "00000000-0000-0000-0000-000000000000"
+location        = "germanywestcentral"
+
+# The permanent roots (registry/acr, secrets/azure-keyvault, dns/azure)
+acr_name       = "worcapoc12345"
+key_vault_name = "worca-poc-12345"
+dns_zone       = "azure.example.com"
+
+# Sizes
+system_vm_size   = "Standard_D2as_v5"
+worker_vm_size   = "Standard_D2as_v5"
+worker_max_nodes = 2

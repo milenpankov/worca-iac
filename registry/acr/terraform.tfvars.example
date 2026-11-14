@@ -1,0 +1,4 @@
+# cp terraform.tfvars.example terraform.tfvars
+subscription_id = "00000000-0000-0000-0000-000000000000"
+tenant_id       = "00000000-0000-0000-0000-000000000000"
+registry_name   = "worcapoc12345" # globally unique, letters and digits

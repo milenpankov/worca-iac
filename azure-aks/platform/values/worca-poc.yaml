@@ -1,0 +1,105 @@
+# values/worca-poc.yaml — the Worca chart's values for the Azure AKS PoC (deploy/helm/worca in
+# worca-cc). Terraform fills the $${...} values (bootstrap.tf) and hands the result to the Argo CD
+# Application; edit here, then `terraform apply` in platform/.
+#
+#   controller   system node (on-demand), executor kubernetes, SQLite on Premium SSD (managed disk)
+#   workers      spot node pool scaled from 0 by the AKS cluster autoscaler; Azure Files NFS shared
+#   ingress      Application Gateway for Containers, TLS from Let's Encrypt (cert-manager)
+#   sign-in      oauth2-proxy + Microsoft Entra ID: everyone in the tenant (no role needed)
+#   secrets      Kubernetes Secrets made by External Secrets from Azure Key Vault
+
+image:
+  registry: ${registry}
+  repository: ${controller_repository}
+  tag: "${image_tag}"
+  pullPolicy: Always   # the PoC re-pushes the same tag
+
+controller:
+  executor: kubernetes
+  nodeSelector:
+    worca.dev/pool: system
+  env:
+    TZ: "${timezone}"
+%{ if mock_mode ~}
+    WORCA_MOCK: "1"
+%{ endif ~}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      memory: 3Gi
+
+# CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, ...: Secret worca-secrets (Key Vault controller-*).
+secrets:
+  existingSecret: worca-secrets
+
+worker:
+  image:
+    registry: ${registry}
+    repository: ${worker_repository}
+  # Engine credentials agents may hold: Secret worca-worker-credentials (Key Vault worker-*).
+  credentialsSecret: worca-worker-credentials
+  nodeSelector:
+    worca.dev/pool: workers
+  tolerations:
+    - key: worca.dev/worker
+      operator: Equal
+      value: "true"
+      effect: NoSchedule
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+  maxWorkers: 2
+  # A spot node takes a few minutes to join: wait up to 10 for a Pending worker.
+  pendingTimeoutSeconds: 600
+  idleTimeoutSeconds: 600
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1536Mi
+    limits:
+      memory: 4Gi
+
+storage:
+  db:
+    storageClassName: managed-csi-premium
+    size: 8Gi
+  shared:
+    storageClassName: azurefile-nfs   # Azure Files premium NFS: 100 GiB is the smallest share
+    size: 100Gi
+    prepare:
+      enabled: true                   # chown the share's directories to uid 1000 once
+
+ingress:
+  enabled: true
+  className: azure-alb-external
+  annotations: ${ingress_annotations}
+  hosts:
+    - host: ${host}
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: worca-tls
+      hosts:
+        - ${host}
+
+# Entra ID app registration (single tenant). Its tenant and client ids come from Key Vault
+# (auth-tenant-id, auth-client-id): not secrets, but kept out of git. Its redirect URI:
+# https://<worca_host>/oauth2/callback.
+auth:
+  enabled: true
+  oidc:
+    issuerUrl: https://login.microsoftonline.com/${tenant_id}/v2.0
+    jwksUrl: https://login.microsoftonline.com/${tenant_id}/discovery/v2.0/keys
+    clientId: ${client_id}
+    scope: openid email profile offline_access
+    emailClaim: preferred_username
+    teamsClaim: roles
+  allowedGroups: []
+  # client-secret and cookie-secret: Secret worca-auth (Key Vault auth-client-secret, auth-cookie-secret).
+  existingSecret: worca-auth
+  nodeSelector:
+    worca.dev/pool: system
