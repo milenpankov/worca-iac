@@ -1,0 +1,7 @@
+apiVersion: v2
+name: worca-bootstrap
+description: >-
+  What Worca on a Rancher-managed cluster needs besides the add-ons: the Vault Secrets Operator's
+  connection, login and synced Secrets, and the Argo CD Application that deploys Worca from git.
+type: application
+version: 0.1.0

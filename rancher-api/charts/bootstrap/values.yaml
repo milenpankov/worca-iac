@@ -1,0 +1,20 @@
+# Set by Terraform (bootstrap.tf).
+vault:
+  address: ""
+  namespace: ""      # Vault Enterprise / OpenBao namespace; empty = none
+  caSecret: ""       # Secret with ca.crt, for a private CA
+  approle: approle   # the AppRole auth mount
+  roleId: ""
+  secretIdRef: ""    # Secret with the secret ID under `id`
+  kvMount: kv
+  refresh: 1h
+# Kubernetes Secret name -> { path: KV v2 entry, restart: [{ kind, name }] }
+secrets: {}
+argocd:
+  namespace: argocd
+worca:
+  release: worca
+  repoURL: ""
+  targetRevision: ""
+  path: deploy/helm/worca
+  values: {}

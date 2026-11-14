@@ -9,6 +9,7 @@ sign-in through your own identity provider.
 | AWS EKS | [aws-eks/](aws-eks) |
 | AWS ECS (controller on EC2; workers on Fargate, Fargate Spot or spot EC2) | [aws-ecs/](aws-ecs) |
 | Azure AKS | [azure-aks/](azure-aks) |
+| Any Rancher-managed cluster, through the Rancher API (Argo CD, Vault Secrets Operator) | [rancher-api/](rancher-api) |
 
 Shared, long-lived pieces the deployments use:
 

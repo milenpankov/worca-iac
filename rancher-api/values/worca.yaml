@@ -1,0 +1,107 @@
+# values/worca.yaml — the Worca chart's values on a Rancher-managed cluster (deploy/helm/worca in
+# worca-cc). Terraform fills the $${...} values (bootstrap.tf) and hands the result to the Argo CD
+# Application; edit here, then `terraform apply`.
+#
+#   controller   executor kubernetes: a worker pod per run and chat thread, in the same namespace
+#   storage      SQLite on a ReadWriteOnce volume; everything shared on a ReadWriteMany class
+#   ingress      the cluster's ingress controller; TLS from its default certificate or a Secret
+#   sign-in      oauth2-proxy + your OpenID Connect provider
+#   secrets      Kubernetes Secrets synced by the Vault Secrets Operator from Vault / OpenBao
+#   images       all from the internal registry, with the pull secret
+
+image:
+  registry: ${registry}
+  repository: ${controller_repository}
+  tag: "${image_tag}"
+  pullPolicy: Always   # the PoC re-pushes the same tag
+
+imagePullSecrets: ${jsonencode(pull_secrets)}
+
+controller:
+  executor: kubernetes
+  # The proxy reaches the workers too: the backend hands its proxy settings to every worker pod.
+  env: ${jsonencode(merge({ TZ = timezone }, mock_mode ? { WORCA_MOCK = "1" } : {}, { for k, v in proxy_env : k => v if lower(k) != "no_proxy" }))}
+  extraNoProxy: "${no_proxy}"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+
+# CLAUDE_CODE_OAUTH_TOKEN, GH_TOKEN, ...: Secret worca-secrets (VSO, from Vault).
+secrets:
+  existingSecret: worca-secrets
+
+worker:
+  image:
+    registry: ${registry}
+    repository: ${worker_repository}
+  # Engine credentials agents may hold: Secret worca-worker-credentials (VSO, from Vault).
+  credentialsSecret: worca-worker-credentials
+  nodeSelector: ${jsonencode(worker.node_selector)}
+  tolerations: ${jsonencode(worker.tolerations)}
+  maxWorkers: ${worker.max_workers}
+  idleTimeoutSeconds: 600
+  resources:
+    requests:
+      cpu: "${worker.requests_cpu}"
+      memory: "${worker.requests_memory}"
+    limits:
+      cpu: "${worker.limits_cpu}"
+      memory: "${worker.limits_memory}"
+
+storage:
+  db:
+    storageClassName: "${storage.db_class}"
+    size: ${storage.db_size}
+  shared:
+    storageClassName: "${storage.shared_class}"
+    size: ${storage.shared_size}
+    prepare:
+      enabled: ${storage.prepare}
+
+ingress:
+  enabled: true
+  className: ${ingress_class}
+  annotations: ${jsonencode(ingress_annotations)}
+  hosts:
+    - host: ${host}
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - ${host}
+%{ if tls_secret_name != "" ~}
+      secretName: ${tls_secret_name}
+%{ endif ~}
+
+# The app registration's redirect URI: https://<worca_host>/oauth2/callback.
+auth:
+  enabled: true
+  image:
+    registry: ${registry}
+    repository: ${oauth2_proxy}
+  oidc:
+    issuerUrl: ${oidc.issuer_url}
+%{ if oidc.jwks_url != "" ~}
+    jwksUrl: ${oidc.jwks_url}
+%{ endif ~}
+    clientId: ${oidc.client_id}
+    scope: ${oidc.scope}
+    emailClaim: ${oidc.email_claim}
+    teamsClaim: ${oidc.teams_claim}
+  allowedGroups: ${jsonencode(oidc.allow_groups)}
+  # client-secret and cookie-secret: Secret worca-auth (VSO, from Vault).
+  existingSecret: worca-auth
+  # oauth2-proxy calls the provider (login, token refresh) through the proxy.
+  env: ${jsonencode(proxy_env)}
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

@@ -1,0 +1,48 @@
+# The Vault Secrets Operator logs in with an AppRole (role ID here, secret ID in a Secret) and
+# syncs one KV v2 entry per Kubernetes Secret. Everything lives in Worca's namespace: no other
+# namespace can use this login.
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: vault
+spec:
+  address: {{ required "vault.address" .Values.vault.address | quote }}
+  {{- with .Values.vault.caSecret }}
+  caCertSecretRef: {{ . }}
+  {{- end }}
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: vault
+spec:
+  vaultConnectionRef: vault
+  {{- with .Values.vault.namespace }}
+  namespace: {{ . | quote }}
+  {{- end }}
+  method: appRole
+  mount: {{ .Values.vault.approle }}
+  appRole:
+    roleId: {{ required "vault.roleId" .Values.vault.roleId | quote }}
+    secretRef: {{ required "vault.secretIdRef" .Values.vault.secretIdRef }}
+{{- range $name, $s := .Values.secrets }}
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: {{ $name }}
+spec:
+  vaultAuthRef: vault
+  type: kv-v2
+  mount: {{ $.Values.vault.kvMount }}
+  path: {{ $s.path | quote }}
+  refreshAfter: {{ $.Values.vault.refresh }}
+  destination:
+    name: {{ $name }}
+    create: true
+  {{- with $s.restart }}
+  # A changed value restarts the pods that read it at start.
+  rolloutRestartTargets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

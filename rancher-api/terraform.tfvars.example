@@ -1,0 +1,63 @@
+# Copy to terraform.tfvars (gitignored). Secrets go in the environment, never here:
+#   export TF_VAR_rancher_token=token-xxxxx:...       # cluster owner on the cluster
+#   export TF_VAR_registry_username=... TF_VAR_registry_password=...
+#   export TF_VAR_vault_approle_secret_id=...
+
+rancher_url     = "https://rancher.example.com"
+rancher_ca_file = "" # e.g. "certs/rancher-ca.pem" for a private CA
+cluster_id      = "c-m-xxxxxxxx"
+
+# Create a project (with project_quota) or use one you were given:
+project_name = "worca"
+# existing_project_id = "c-m-xxxxxxxx:p-xxxxx"
+namespace_prefix = ""
+
+registry = "registry.example.com"
+images = {
+  worca_controller = "team/worca"
+  worca_worker     = "team/worca-worker"
+  oauth2_proxy     = "mirror/oauth2-proxy/oauth2-proxy"
+  argocd           = "mirror/argoproj/argocd"
+  redis            = "mirror/docker/library/redis"
+  vso              = "mirror/hashicorp/vault-secrets-operator"
+  kube_rbac_proxy  = "mirror/brancz/kube-rbac-proxy"
+}
+worca_image_tag = "poc"
+
+http_proxy = "" # e.g. "http://proxy.example.com:8080"
+no_proxy   = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.example.com"
+
+ingress_class   = "nginx"
+tls_secret_name = "" # empty = the ingress controller's default (wildcard) certificate
+worca_host      = "worca.apps.example.com"
+argocd_host     = "argocd-worca.apps.example.com"
+
+storage = {
+  db_class     = ""          # ReadWriteOnce; empty = the cluster default
+  shared_class = "nfs-rwx"   # ReadWriteMany
+  shared_size  = "50Gi"
+}
+
+vault = {
+  address   = "https://vault.example.com"
+  namespace = ""                  # Vault Enterprise / OpenBao namespace, if any
+  ca_file   = ""                  # e.g. "certs/vault-ca.pem"
+  approle   = "approle"
+  role_id   = "00000000-0000-0000-0000-000000000000"
+  kv_mount  = "kv"
+}
+
+oidc = {
+  # Microsoft Entra ID, for example:
+  issuer_url  = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+  jwks_url    = "https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys"
+  client_id   = "<application-id>"
+  email_claim = "preferred_username"
+  teams_claim = "roles"
+}
+
+worker = {
+  max_workers = 2
+}
+
+mock_mode = false
