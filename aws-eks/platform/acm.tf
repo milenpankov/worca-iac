@@ -1,5 +1,5 @@
 # One ACM certificate for both hosts, attached to the ALB (alb_annotations). Validated by DNS:
-# automatically when route53_zone_id is set, otherwise add the records in output
+# automatically when route53_zone is set, otherwise add the records in output
 # acm_validation_records at your DNS provider once. ACM renews it on its own.
 resource "aws_acm_certificate" "this" {
   domain_name               = var.worca_host
@@ -12,11 +12,11 @@ resource "aws_acm_certificate" "this" {
 }
 
 resource "aws_route53_record" "acm_validation" {
-  for_each = var.route53_zone_id == "" ? {} : {
+  for_each = local.zone_id == "" ? {} : {
     for o in aws_acm_certificate.this.domain_validation_options : o.domain_name => o
   }
 
-  zone_id         = var.route53_zone_id
+  zone_id         = local.zone_id
   name            = each.value.resource_record_name
   type            = each.value.resource_record_type
   records         = [each.value.resource_record_value]
@@ -25,7 +25,7 @@ resource "aws_route53_record" "acm_validation" {
 }
 
 resource "aws_acm_certificate_validation" "this" {
-  count = var.route53_zone_id == "" ? 0 : 1
+  count = local.zone_id == "" ? 0 : 1
 
   certificate_arn         = aws_acm_certificate.this.arn
   validation_record_fqdns = [for r in aws_route53_record.acm_validation : r.fqdn]

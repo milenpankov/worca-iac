@@ -7,9 +7,6 @@ locals {
     worker_repository     = trimprefix(local.infra.ecr_repositories["worca-worker"], "${local.infra.ecr_registry}/")
     image_tag             = var.worca_image_tag
     host                  = var.worca_host
-    tenant_id             = var.entra_tenant_id
-    client_id             = var.entra_client_id
-    allowed_roles         = jsonencode(var.allowed_roles)
     timezone              = var.timezone
     mock_mode             = var.mock_mode
     # The ALB IngressGroup's settings, plus the health check of oauth2-proxy (Worca's Ingress

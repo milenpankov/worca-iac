@@ -31,16 +31,20 @@ Ingresses in that group (`alb_annotations` in `platform/addons.tf`), not more lo
 - **Tools:** Terraform 1.9 or newer, AWS CLI v2 signed in to the target account, kubectl, Helm,
   and Docker (to build the images).
 - **Two host names** whose DNS you control: `worca_host` and `argocd_host`, e.g.
-  `worca.example.com` and `argocd.example.com`.
-  - **With a Route 53 zone** (`route53_zone_id`), Terraform validates the certificate and creates
-    both records.
+  `worca.example.com` and `argocd.worca.example.com`.
+  - **With a Route 53 zone** (`route53_zone`, its name), Terraform validates the certificate and
+    creates both records (aliases to the ALB) on every apply. For a domain whose DNS is
+    elsewhere, delegate one subdomain to Route 53 once with [dns/route53](../dns/route53); it
+    stays when this deployment is destroyed.
   - **Otherwise** you add the certificate's validation CNAMEs and two CNAMEs to the ALB yourself.
-- **An Entra app registration** (single tenant) for Worca's sign-in:
-  - **Redirect URI** (Web): `https://<worca_host>/oauth2/callback`.
-  - **Client secret:** create one.
-  - **App roles:** e.g. `worca.team-a`, assigned to the people or groups who may use this Worca.
-
-  See worca-cc's `docs/auth.md`, "Microsoft Entra ID".
+- **The Entra app registration** for Worca's sign-in is set in
+  [values/worca-poc.yaml](platform/values/worca-poc.yaml) (`auth.oidc`: tenant and client id).
+  Everyone in the tenant may sign in (`allowedGroups: []`).
+  - **Redirect URI** (Web): add `https://<worca_host>/oauth2/callback`
+    (`terraform output entra_redirect_uri`).
+  - **Client secret:** goes to SSM only (step 3).
+  - **Another app or tenant**, or only some app roles: edit `auth` in the values file. See
+    worca-cc's `docs/auth.md`, "Microsoft Entra ID".
 
 ## Deploy
 
@@ -90,18 +94,19 @@ every hour. To rotate sooner: `kubectl -n worca annotate externalsecret --all fo
 
 ```bash
 cd platform
-cp terraform.tfvars.example terraform.tfvars   # hosts, Entra ids, roles, mock_mode
+cp terraform.tfvars.example terraform.tfvars   # hosts, mock_mode
 terraform init
 terraform apply
 ```
 
-**Without** `route53_zone_id`, do the DNS once by hand:
+**Without** `route53_zone`, do the DNS once by hand:
 1. Add the CNAMEs from `terraform output acm_validation_records`. ACM issues the certificate a
    few minutes later; until then the ALB has no HTTPS listener.
 2. `terraform apply` again: the first apply may finish before the ALB exists.
 3. CNAME both hosts to `terraform output load_balancer_hostname`.
 
-**With** a Route 53 zone, the second `apply` creates the host records too.
+**With** `route53_zone`, the certificate is validated during the first apply, and the second
+`apply` creates the host records (the first may finish before the ALB exists).
 
 Argo CD then syncs Worca. Watch it with:
 

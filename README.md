@@ -8,6 +8,12 @@ sign-in through your own identity provider.
 |---|---|
 | AWS EKS | [aws-eks/](aws-eks) |
 
+Shared, long-lived pieces the deployments use:
+
+| What | Folder |
+|---|---|
+| A subdomain delegated to Route 53 (the parent domain's DNS stays elsewhere) | [dns/route53/](dns/route53) |
+
 Each platform is self-contained: its own Terraform roots, values and README. Nothing is shared
 between platforms until a second one shows what is really common.
 

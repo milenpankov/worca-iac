@@ -25,7 +25,7 @@ variable "worca_image_tag" {
 }
 
 variable "worca_host" {
-  description = "Public host name of Worca, e.g. worca.example.com. Point it at the ALB (output load_balancer_hostname) or set route53_zone_id."
+  description = "Public host name of Worca, e.g. worca.example.com. Point it at the ALB (output load_balancer_hostname) or set route53_zone."
   type        = string
 }
 
@@ -34,8 +34,8 @@ variable "argocd_host" {
   type        = string
 }
 
-variable "route53_zone_id" {
-  description = "Optional: the Route 53 hosted zone of both hosts. The certificate's validation records and CNAMEs to the ALB are created there."
+variable "route53_zone" {
+  description = "Optional: the name of the Route 53 hosted zone both hosts are in (e.g. from worca-iac/dns/route53). The certificate's validation records and alias records to the ALB are created there."
   type        = string
   default     = ""
 }
@@ -49,24 +49,6 @@ variable "mock_mode" {
 variable "timezone" {
   type    = string
   default = "Europe/Berlin"
-}
-
-# --- Sign-in: Microsoft Entra ID ------------------------------------------------------------
-
-variable "entra_tenant_id" {
-  description = "Directory (tenant) ID."
-  type        = string
-}
-
-variable "entra_client_id" {
-  description = "Application (client) ID of the Worca app registration (single tenant)."
-  type        = string
-}
-
-variable "allowed_roles" {
-  description = "Entra app role values admitted to this Worca (the `roles` claim). Empty = everyone in the tenant who can sign in to the app."
-  type        = list(string)
-  default     = []
 }
 
 # --- Secrets: names of SSM parameters under /worca/<environment>/ ----------------------------

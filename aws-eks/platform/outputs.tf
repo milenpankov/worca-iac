@@ -12,13 +12,13 @@ output "entra_redirect_uri" {
 }
 
 output "load_balancer_hostname" {
-  description = "The ALB. CNAME both hosts to it unless route53_zone_id is set. Empty on the very first apply until the ALB exists: run apply again."
+  description = "The ALB. CNAME both hosts to it unless route53_zone is set. Empty on the very first apply until the ALB exists: run apply again."
   value       = local.lb_hostname
 }
 
 output "acm_validation_records" {
-  description = "Without route53_zone_id: add these CNAMEs at your DNS provider once; the ALB serves HTTPS after ACM has validated them."
-  value = var.route53_zone_id != "" ? [] : [
+  description = "Without route53_zone: add these CNAMEs at your DNS provider once; the ALB serves HTTPS after ACM has validated them."
+  value = var.route53_zone != "" ? [] : [
     for o in aws_acm_certificate.this.domain_validation_options : {
       name  = o.resource_record_name
       type  = o.resource_record_type
